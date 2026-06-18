@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxelTest</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1d4370; overflow: hidden; font-family: monospace; cursor: pointer; }
+  canvas { display: block; }
+
+  #hint {
+    position: fixed; top: 22px; left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.2); font-size: 11px; letter-spacing: 0.1em;
+    pointer-events: none; white-space: nowrap;
+  }
+  #mode {
+    position: fixed; top: 40px; left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.4); font-size: 12px; letter-spacing: 0.18em;
+    pointer-events: none;
+  }
+
+  #ui {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 9px 16px; border-radius: 32px;
+    backdrop-filter: blur(12px);
+    white-space: nowrap;
+  }
+  #ui button {
+    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 6px 13px; border-radius: 18px;
+    cursor: pointer; font-family: monospace; font-size: 11px; letter-spacing: 0.1em;
+    transition: background 0.15s, color 0.15s;
+  }
+  #ui button:hover  { background: rgba(255,255,255,0.18); color: #fff; }
+  #ui button.active { background: rgba(255,255,255,0.22); color: #fff; border-color: rgba(255,255,255,0.4); }
+  #ui button:disabled { opacity: 0.3; cursor: default; }
+
+  #wordInput {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff; font-family: monospace; font-size: 12px; letter-spacing: 0.12em;
+    padding: 6px 10px; border-radius: 18px; outline: none; width: 170px;
+    text-transform: uppercase;
+  }
+  #wordInput::placeholder { color: rgba(255,255,255,0.25); }
+  #wordInput:focus { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); }
+
+  .sep { width: 1px; height: 20px; background: rgba(255,255,255,0.1); flex-shrink: 0; }
+  #ui span { color: rgba(255,255,255,0.3); font-size: 10px; letter-spacing: 0.08em; }
+  #lightBlend { width: 80px; accent-color: #fff; opacity: 0.5; cursor: pointer; }
+
+  /* ── Settings panel ────────────────────────────── */
+  #settings {
+    position: fixed; top: 16px; right: 16px;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 12px 14px; border-radius: 12px;
+    backdrop-filter: blur(12px);
+    display: flex; flex-direction: column; gap: 9px;
+    font-family: monospace; font-size: 10px;
+    color: rgba(255,255,255,0.45); letter-spacing: 0.08em;
+    user-select: none;
+  }
+  .srow { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+  .srow label {
+    display: flex; align-items: center; gap: 4px; cursor: pointer;
+    color: rgba(255,255,255,0.45);
+  }
+  .srow label:hover { color: rgba(255,255,255,0.75); }
+  .srow input[type="color"] {
+    width: 22px; height: 22px; border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px; cursor: pointer; padding: 1px; background: none;
+  }
+  .srow input[type="range"] { width: 72px; accent-color: #fff; opacity: 0.5; cursor: pointer; }
+  .srow input[type="checkbox"] { cursor: pointer; accent-color: #fff; }
+  .srow select {
+    background: rgba(255,255,255,0.07); color: #fff;
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+    font-family: monospace; font-size: 10px; padding: 3px 6px; cursor: pointer;
+  }
+  .slabel { min-width: 42px; }
+  .valLabel { min-width: 26px; text-align: right; color: rgba(255,255,255,0.6); }
+  .palette { display: flex; gap: 4px; flex-wrap: wrap; }
+  .swatch {
+    width: 16px; height: 16px; border-radius: 4px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: transform 0.1s, border-color 0.1s;
+  }
+  .swatch:hover { transform: scale(1.15); border-color: rgba(255,255,255,0.6); }
+  .swatch.selected { border-color: #fff; box-shadow: 0 0 0 1px #fff; }
+
+  /* ── Sequence panel ────────────────────────────── */
+  #sequence {
+    position: fixed; top: 56px; left: 16px;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 12px 14px; border-radius: 12px;
+    backdrop-filter: blur(12px);
+    display: flex; flex-direction: column; gap: 8px;
+    font-family: monospace; font-size: 10px;
+    color: rgba(255,255,255,0.45); letter-spacing: 0.08em;
+    user-select: none;
+  }
+  .seqWord {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff; font-family: monospace; font-size: 11px; letter-spacing: 0.1em;
+    padding: 5px 7px; border-radius: 8px; outline: none; width: 88px;
+    text-transform: uppercase;
+  }
+  .seqWord::placeholder { color: rgba(255,255,255,0.25); }
+  .seqWord:focus { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); }
+  #seqHold, #transDuration {
+    background: rgba(255,255,255,0.07); color: #fff;
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+    font-family: monospace; font-size: 10px; padding: 3px 5px;
+  }
+  #btnPlay {
+    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 5px 12px; border-radius: 14px;
+    cursor: pointer; font-family: monospace; font-size: 11px; letter-spacing: 0.1em;
+    transition: background 0.15s, color 0.15s;
+  }
+  #btnPlay:hover  { background: rgba(255,255,255,0.18); color: #fff; }
+  #btnPlay.playing { background: rgba(255,255,255,0.22); color: #fff; border-color: rgba(255,255,255,0.4); }
+  #btnRecord {
+    background: rgba(255,255,255,0.08); color: rgba(255,80,80,0.8);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 5px 12px; border-radius: 14px;
+    cursor: pointer; font-family: monospace; font-size: 11px; letter-spacing: 0.1em;
+    transition: background 0.15s, color 0.15s;
+  }
+  #btnRecord:hover  { background: rgba(255,255,255,0.18); color: #ff5050; }
+  #btnRecord.playing { background: rgba(255,80,80,0.25); color: #ff5050; border-color: rgba(255,80,80,0.5); }
+  #btnRecord:disabled, #btnPlay:disabled { opacity: 0.3; cursor: default; }
+
+  #hideMenuBtn {
+    position: fixed; top: 14px; left: 14px;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.45);
+    font-family: monospace; font-size: 9px; letter-spacing: 0.08em;
+    padding: 5px 9px; border-radius: 14px;
+    cursor: pointer; backdrop-filter: blur(12px);
+    z-index: 10;
+  }
+  #hideMenuBtn:hover { color: #fff; background: rgba(0,0,0,0.6); }
+  .ui-hidden { display: none !important; }
+</style>
+</head>
+<body>
+<button id="hideMenuBtn">HIDE MENU</button>
+<div id="hint">CLICK TO SCATTER · DRAG TO ORBIT</div>
+<div id="mode">CUBE</div>
+
+<div id="ui">
+  <button id="btnCube" class="active">CUBE</button>
+  <button id="btnLetters">SYSTEM</button>
+  <div class="sep"></div>
+  <input type="text" id="wordInput" placeholder="SPELL A WORD" maxlength="16" spellcheck="false">
+  <button id="btnBuild">BUILD</button>
+  <div class="sep"></div>
+  <span>FLAT</span>
+  <input type="range" id="lightBlend" min="0" max="100" value="0">
+  <span>LIT</span>
+</div>
+
+<div id="sequence">
+  <div class="srow"><span class="slabel">SEQUENCE</span></div>
+  <div class="srow seqWords">
+    <input type="text" class="seqWord" placeholder="WORD 1" maxlength="16" spellcheck="false">
+    <input type="text" class="seqWord" placeholder="WORD 2" maxlength="16" spellcheck="false">
+    <input type="text" class="seqWord" placeholder="WORD 3" maxlength="16" spellcheck="false">
+    <input type="text" class="seqWord" placeholder="WORD 4" maxlength="16" spellcheck="false">
+  </div>
+  <div class="srow seqWords">
+    <input type="text" class="seqWord" placeholder="WORD 5" maxlength="16" spellcheck="false">
+    <input type="text" class="seqWord" placeholder="WORD 6" maxlength="16" spellcheck="false">
+    <input type="text" class="seqWord" placeholder="WORD 7" maxlength="16" spellcheck="false">
+    <input type="text" class="seqWord" placeholder="WORD 8" maxlength="16" spellcheck="false">
+  </div>
+  <div class="srow">
+    <span class="slabel">TRANS (s)</span>
+    <input type="number" id="transDuration" min="0.1" max="10" step="0.1" value="1.8" style="width:50px">
+  </div>
+  <div class="srow">
+    <span class="slabel">HOLD (s)</span>
+    <input type="number" id="seqHold" min="0.2" max="30" step="0.1" value="2" style="width:50px">
+    <button id="btnPlay">▶ PLAY</button>
+    <button id="btnRecord">⏺ RECORD</button>
+  </div>
+</div>
+
+<div id="settings">
+  <div class="srow" style="display:none">
+    <input type="color" id="cubeColor" value="#04bff1">
+    <input type="color" id="bgColor" value="#1d4370">
+  </div>
+  <div class="srow">
+    <span class="slabel">CUBE</span>
+    <div class="palette" data-target="cubeColor"></div>
+  </div>
+  <div class="srow">
+    <span class="slabel">BG</span>
+    <div class="palette" data-target="bgColor"></div>
+  </div>
+  <div class="srow">
+    <label><input type="checkbox" id="chkGrid" checked> GRID</label>
+    <input type="color" id="gridColor" value="#007fad" title="Grid color" style="display:none">
+    <label><input type="checkbox" id="chkFill" checked> FILL</label>
+    <label><input type="checkbox" id="chkOutline"> OUTLINE</label>
+    <input type="color" id="outlineColor" value="#000000" title="Outline color" style="display:none">
+  </div>
+  <div class="srow">
+    <span class="slabel">GRID</span>
+    <div class="palette" data-target="gridColor"></div>
+  </div>
+  <div class="srow">
+    <span class="slabel">OUTLINE</span>
+    <div class="palette" data-target="outlineColor"></div>
+  </div>
+  <div class="srow">
+    <label><input type="checkbox" id="chkShrinkOnly" checked> SHRINK ONLY</label>
+  </div>
+  <div class="srow">
+    <span class="slabel">TYPE</span>
+    <select id="noiseType">
+      <option value="sine">SINE</option>
+      <option value="perlin">PERLIN</option>
+      <option value="pulse">PULSE</option>
+      <option value="random">RANDOM</option>
+      <option value="ripple">RIPPLE</option>
+    </select>
+  </div>
+  <div class="srow">
+    <span class="slabel">AMOUNT</span>
+    <input type="range" id="noiseAmp" min="0" max="300" value="110">
+    <span id="noiseAmpVal" class="valLabel">110</span>
+  </div>
+  <div class="srow">
+    <span class="slabel">FREQ</span>
+    <input type="range" id="noiseFreq" min="0" max="300" value="57">
+    <span id="noiseFreqVal" class="valLabel">57</span>
+  </div>
+  <div class="srow">
+    <span class="slabel">SPEED</span>
+    <input type="range" id="noiseSpeed" min="0" max="300" value="12">
+    <span id="noiseSpeedVal" class="valLabel">12</span>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1d4370);
+
+// ── Camera ────────────────────────────────────────────────────────────────────
+const frustum = 19;
+let aspect = innerWidth / innerHeight;
+const camera = new THREE.OrthographicCamera(
+  -frustum * aspect, frustum * aspect, frustum, -frustum, -200, 200
+);
+camera.position.set(20, 20, 20);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+// ── Lights ────────────────────────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0xffffff, 10); scene.add(ambient);
+const key  = new THREE.DirectionalLight(0xffffff, 0); key.position.set(8, 20, 8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xaaccff, 0); fill.position.set(-10, 4, -8); scene.add(fill);
+const rim  = new THREE.DirectionalLight(0xffeedd, 0); rim.position.set(0, -8, -10); scene.add(rim);
+
+let lightBlend = 0;
+function applyLight(b) {
+  // MeshLambertMaterial divides by PI (Lambert BRDF: albedo/PI * irradiance),
+  // so ambient intensity must be PI for output to exactly equal the picked
+  // color when there's no directional light contribution.
+  ambient.intensity = THREE.MathUtils.lerp(Math.PI, 0.3, b);
+  key.intensity     = THREE.MathUtils.lerp(0, 1.8, b);
+  fill.intensity    = THREE.MathUtils.lerp(0, 0.5, b);
+  rim.intensity     = THREE.MathUtils.lerp(0, 0.3, b);
+}
+
+// ── Grid floor — uniform line color, cell = 1 unit ───────────────────────────
+let GRID_COLOR = 0x007fad;
+let gridHelper = new THREE.GridHelper(400, 400, GRID_COLOR, GRID_COLOR);
+// Slightly below 0 so it never z-fights with cube bottom faces/outlines,
+// which sit exactly at y=0.
+gridHelper.position.y = -0.02;
+scene.add(gridHelper);
+
+// ── Pixel font (5×7) ──────────────────────────────────────────────────────────
+const FONT = {
+  'A':['01110','10001','10001','11111','10001','10001','10001'],
+  'B':['11110','10001','10001','11110','10001','10001','11110'],
+  'C':['01111','10000','10000','10000','10000','10000','01111'],
+  'D':['11110','10001','10001','10001','10001','10001','11110'],
+  'E':['11111','10000','10000','11110','10000','10000','11111'],
+  'F':['11111','10000','10000','11110','10000','10000','10000'],
+  'G':['01111','10000','10000','10111','10001','10001','01111'],
+  'H':['10001','10001','10001','11111','10001','10001','10001'],
+  'I':['11111','00100','00100','00100','00100','00100','11111'],
+  'J':['00111','00010','00010','00010','00010','10010','01100'],
+  'K':['10001','10010','10100','11000','10100','10010','10001'],
+  'L':['10000','10000','10000','10000','10000','10000','11110'],
+  'M':['10001','11011','10101','10001','10001','10001','10001'],
+  'N':['10001','11001','10101','10011','10001','10001','10001'],
+  'O':['01110','10001','10001','10001','10001','10001','01110'],
+  'P':['11110','10001','10001','11110','10000','10000','10000'],
+  'Q':['01110','10001','10001','10001','10101','10011','01111'],
+  'R':['11110','10001','10001','11110','10100','10010','10001'],
+  'S':['01111','10000','10000','01110','00001','00001','11110'],
+  'T':['11111','00100','00100','00100','00100','00100','00100'],
+  'U':['10001','10001','10001','10001','10001','10001','01110'],
+  'V':['10001','10001','10001','10001','10001','01010','00100'],
+  'W':['10001','10001','10001','10101','10101','11011','10001'],
+  'X':['10001','10001','01010','00100','01010','10001','10001'],
+  'Y':['10001','10001','01010','00100','00100','00100','00100'],
+  'Z':['11111','00001','00010','00100','01000','10000','11111'],
+  '0':['01110','10001','10011','10101','11001','10001','01110'],
+  '1':['00100','01100','00100','00100','00100','00100','01110'],
+  '2':['01110','10001','00001','00010','00100','01000','11111'],
+  '3':['01110','10001','00001','00110','00001','10001','01110'],
+  '4':['10001','10001','10001','11111','00001','00001','00001'],
+  '5':['11111','10000','10000','11110','00001','00001','11110'],
+  '6':['01110','10000','10000','11110','10001','10001','01110'],
+  '7':['11111','00001','00010','00100','01000','01000','01000'],
+  '8':['01110','10001','10001','01110','10001','10001','01110'],
+  '9':['01110','10001','10001','01111','00001','00001','01110'],
+  '!':['00100','00100','00100','00100','00100','00000','00100'],
+  '?':['01110','10001','00001','00010','00100','00000','00100'],
+  ' ':['00000','00000','00000','00000','00000','00000','00000'],
+};
+
+// ── Cube size = grid cell size (no gaps) ─────────────────────────────────────
+const CUBE_SIZE = 1.0;
+const CUBE_STEP = 1.0;
+
+// Letter step vectors — grid-aligned, no vertical gaps.
+// L_RIGHT = (1,0,-1): each column step is diagonal in XZ (aligns with grid).
+// L_UP    = (0,1,0):  each row step is pure world-Y so cubes stack flush.
+// Adding (0.5,0,0.5) centers cubes inside their grid cells.
+const L_RIGHT  = new THREE.Vector3(1, 0, -1);
+const L_UP     = new THREE.Vector3(0, 1,  0);
+const L_OFFSET = new THREE.Vector3(0.5, 0, 0.5);
+
+// ── Shared geometry / material ────────────────────────────────────────────────
+const geo      = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE));
+const mat     = new THREE.MeshLambertMaterial({ color: 0x04bff1, transparent: true, opacity: 1 });
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+
+// Pool position: below scene, invisible
+const POOL = new THREE.Vector3(0, -60, 0);
+
+let showFill    = true;
+let showOutline = false;
+let noiseType    = 'sine';
+let noiseAmp     = 1.10;
+let shrinkOnly   = true;
+let noiseFreq    = 0.57;
+let noiseSpeed   = 0.12;
+let noiseTime    = 0;
+
+// ── Noise functions ───────────────────────────────────────────────────────────
+function hash(n) {
+  const s = Math.sin(n * 12.9898) * 43758.5453;
+  return s - Math.floor(s); // [0,1)
+}
+function valueNoise1D(x) {
+  const i0 = Math.floor(x), i1 = i0 + 1, t = x - i0;
+  const s = t * t * (3 - 2 * t);
+  const v0 = hash(i0) * 2 - 1, v1 = hash(i1) * 2 - 1;
+  return v0 * (1 - s) + v1 * s;
+}
+function computeNoise(type, i, pos, t, freq) {
+  switch (type) {
+    case 'sine':
+      return Math.sin(i * 1.3 * freq + t) * 0.5
+           + Math.sin(i * 2.7 * freq - t * 1.4) * 0.3
+           + Math.sin(i * 0.5 * freq + t * 0.6) * 0.2;
+    case 'perlin':
+      return valueNoise1D(i * freq * 0.5 + t);
+    case 'pulse':
+      return Math.sign(Math.sin(i * 0.7 * freq + t));
+    case 'random': {
+      const tt = t * freq * 0.5 + i * 7.0;
+      const i0 = Math.floor(tt), f = tt - i0;
+      const s = f * f * (3 - 2 * f);
+      const a = hash(i0 + i * 0.37) * 2 - 1, b = hash(i0 + 1 + i * 0.37) * 2 - 1;
+      return a * (1 - s) + b * s;
+    }
+    case 'ripple': {
+      const d = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
+      return Math.sin(d * freq * 1.5 - t * 2);
+    }
+    default:
+      return 0;
+  }
+}
+
+const voxels = [];
+
+function getVoxel(i) {
+  if (i < voxels.length) return voxels[i];
+  const mesh  = new THREE.Mesh(geo, mat);
+  const edges = new THREE.LineSegments(edgesGeo, edgeMat);
+  edges.visible = showOutline;
+  mesh.add(edges);
+  mesh.position.copy(POOL);
+  scene.add(mesh);
+  const v = { mesh, edges, from: POOL.clone(), to: POOL.clone() };
+  voxels.push(v);
+  return v;
+}
+
+// ── Floor-lift: shift positions so the bottom face of the lowest cube = y 0 ──
+function liftToFloor(positions) {
+  if (positions.length === 0) return positions;
+  const minY = Math.min(...positions.map(p => p.y));
+  // bottom face of lowest cube is at minY - CUBE_SIZE/2; lift to 0
+  const lift = CUBE_SIZE / 2 - minY;
+  return positions.map(p => new THREE.Vector3(p.x, p.y + lift, p.z));
+}
+
+// ── Arrangement builders ───────────────────────────────────────────────────────
+
+function buildCubePositions() {
+  // 4×4×5 box of voxels = 80, ~25% more than the original 4×4×4 (64),
+  // centered XZ, sitting on the floor
+  const n = 4, layers = 5;
+  const half = (n - 1) / 2 * CUBE_STEP;
+  const out = [];
+  for (let y = 0; y < layers; y++)
+    for (let z = 0; z < n; z++)
+      for (let x = 0; x < n; x++)
+        out.push(new THREE.Vector3(
+          x * CUBE_STEP - half,
+          y * CUBE_STEP,
+          z * CUBE_STEP - half
+        ));
+  return liftToFloor(out); // 80 voxels
+}
+
+function buildVoxlPositions() {
+  // "SYSTEM" using the same 7-tall font as typed words
+  return buildWordPositions('SYSTEM');
+}
+
+// Per-row ink profile of a glyph (leftmost/rightmost lit column in each
+// row, or null for empty rows). Used for optical (per-scanline) kerning —
+// an overall bounding box isn't enough because e.g. 'L' is only narrow
+// except for its full-width foot, so box-kerning still left huge gaps
+// next to letters like 'T'.
+const GLYPH_PROFILE = {};
+function glyphProfile(ch) {
+  if (GLYPH_PROFILE[ch]) return GLYPH_PROFILE[ch];
+  const rows = FONT[ch].map(row => {
+    let min = Infinity, max = -Infinity;
+    [...row].forEach((bit, ci) => {
+      if (bit === '1') { if (ci < min) min = ci; if (ci > max) max = ci; }
+    });
+    return min === Infinity ? null : { min, max };
+  });
+  let boundsMin = Infinity, boundsMax = -Infinity;
+  rows.forEach(r => { if (r) { boundsMin = Math.min(boundsMin, r.min); boundsMax = Math.max(boundsMax, r.max); } });
+  if (boundsMin === Infinity) { boundsMin = 0; boundsMax = 4; } // blank glyph (space)
+  return (GLYPH_PROFILE[ch] = { rows, min: boundsMin, max: boundsMax });
+}
+
+function buildWordPositions(word) {
+  const chars = [...word.toUpperCase()].filter(c => FONT[c]);
+  if (chars.length === 0) return [];
+  // gap is a distance between cube *centers*, and cubes are 1 unit wide,
+  // so gap=1 means cubes touch. Use 2 for one full empty cell of clearance.
+  const gap=2, lh=7;
+
+  // Optical kerning: place each letter as close as possible to the
+  // previous one while keeping at least `gap` clearance between their
+  // ink on every shared row (not just their overall bounding boxes).
+  let prevX0 = 0;
+  let prevProfile = null;
+  const letterX = chars.map((ch, li) => {
+    const prof = glyphProfile(ch);
+    let x0;
+    if (li === 0) {
+      x0 = -prof.min;
+    } else {
+      let minX0 = -Infinity;
+      for (let r = 0; r < lh; r++) {
+        const pr = prevProfile.rows[r], cr = prof.rows[r];
+        if (!pr || !cr) continue;
+        const need = prevX0 + pr.max + gap - cr.min;
+        if (need > minX0) minX0 = need;
+      }
+      if (minX0 === -Infinity) minX0 = prevX0 + (prevProfile.max - prevProfile.min + 1) + gap - prof.min;
+      x0 = minX0;
+    }
+    prevX0 = x0;
+    prevProfile = prof;
+    return x0;
+  });
+  const lastIdx = chars.length - 1;
+  const totalW = letterX[lastIdx] + glyphProfile(chars[lastIdx]).max + 1;
+
+  const out = [];
+  chars.forEach((ch, li) => {
+    FONT[ch].forEach((row, ri) => {
+      [...row].forEach((bit, ci) => {
+        if (bit === '1') {
+          const cx = letterX[li] + ci - (totalW - 1) / 2;
+          const cy = (lh - 1 - ri) - (lh - 1) / 2;
+          out.push(new THREE.Vector3()
+            .addScaledVector(L_RIGHT, cx)
+            .addScaledVector(L_UP, cy)
+            .add(L_OFFSET));
+        }
+      });
+    });
+  });
+  return liftToFloor(out);
+}
+
+// ── Pre-built arrangements ────────────────────────────────────────────────────
+const CUBE_POS = buildCubePositions(); // 64
+const VOXL_POS = buildVoxlPositions(); // "SYSTEM"
+
+CUBE_POS.forEach((p, i) => { getVoxel(i).mesh.position.copy(p); });
+
+// ── Animation state ───────────────────────────────────────────────────────────
+let phase       = 'idle';
+let progress    = 0;
+let animDuration = 1.4;
+let animEase;
+let currentArr  = 'cube';
+let isAssembled = true;
+let currentTargets = CUBE_POS.map(p => p.clone());
+
+function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+function easeOut(t)   { return 1-(1-t)*(1-t); }
+
+function startAnim(positions, dur, easeFn) {
+  for (let i = voxels.length; i < positions.length; i++) getVoxel(i);
+  voxels.forEach((v, i) => {
+    v.mesh.scale.setScalar(1);
+    v.from.copy(v.mesh.position);
+    v.to.copy(i < positions.length ? positions[i] : POOL);
+  });
+  animEase    = easeFn || easeInOut;
+  animDuration = dur;
+  phase       = 'animating';
+  progress    = 0;
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+const hintEl     = document.getElementById('hint');
+const modeEl     = document.getElementById('mode');
+const btnCube    = document.getElementById('btnCube');
+const btnLetters = document.getElementById('btnLetters');
+const btnBuild   = document.getElementById('btnBuild');
+const wordInput  = document.getElementById('wordInput');
+const transDurationEl = document.getElementById('transDuration');
+function getTransDuration() { return Math.max(0.1, parseFloat(transDurationEl.value) || 1.8); }
+
+function setActiveBtn(id) {
+  [btnCube, btnLetters, btnBuild].forEach(b => b.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+}
+
+function goToArrangement(positions, label, arrName, btnId) {
+  if (phase !== 'idle' || !isAssembled) return;
+  currentArr     = arrName;
+  currentTargets = positions.map(p => p.clone());
+  startAnim(positions, getTransDuration());
+  modeEl.textContent = label;
+  setActiveBtn(btnId);
+}
+
+btnCube.onclick    = () => goToArrangement(CUBE_POS, 'CUBE', 'cube',    'btnCube');
+btnLetters.onclick = () => goToArrangement(VOXL_POS, 'SYSTEM', 'letters', 'btnLetters');
+
+btnBuild.onclick = () => {
+  const word = wordInput.value.trim();
+  if (!word || phase !== 'idle' || !isAssembled) return;
+  const positions = buildWordPositions(word);
+  if (positions.length === 0) return;
+  currentArr     = 'word';
+  currentTargets = positions.map(p => p.clone());
+  startAnim(positions, getTransDuration());
+  modeEl.textContent = word.toUpperCase();
+  setActiveBtn('btnBuild');
+};
+
+wordInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') btnBuild.click();
+  e.stopPropagation();
+});
+
+// ── Word sequence playback ───────────────────────────────────────────────────
+const btnPlay   = document.getElementById('btnPlay');
+const seqHold   = document.getElementById('seqHold');
+const seqWordEls = [...document.querySelectorAll('.seqWord')];
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function waitForIdle() {
+  return new Promise(resolve => {
+    const check = () => phase === 'idle' ? resolve() : requestAnimationFrame(check);
+    check();
+  });
+}
+
+let sequencePlaying = false;
+
+function canStartSequence() {
+  const words = seqWordEls.map(el => el.value.trim()).filter(Boolean);
+  return words.length > 0 && phase === 'idle' && isAssembled && !sequencePlaying;
+}
+
+async function runSequence() {
+  const words = seqWordEls.map(el => el.value.trim()).filter(Boolean).slice(0, 8);
+  sequencePlaying = true;
+  [btnCube, btnLetters, btnBuild].forEach(b => b.disabled = true);
+
+  const holdMs = Math.max(0, parseFloat(seqHold.value) || 2) * 1000;
+  const steps  = [CUBE_POS, ...words.map(buildWordPositions), CUBE_POS];
+  const labels = ['CUBE', ...words.map(w => w.toUpperCase()), 'CUBE'];
+
+  for (let i = 0; i < steps.length && sequencePlaying; i++) {
+    currentArr     = (i === 0 || i === steps.length - 1) ? 'cube' : 'word';
+    currentTargets = steps[i].map(p => p.clone());
+    startAnim(steps[i], getTransDuration());
+    modeEl.textContent = labels[i];
+    await waitForIdle();
+    if (!sequencePlaying) break;
+    await sleep(holdMs);
+  }
+
+  sequencePlaying = false;
+  [btnCube, btnLetters, btnBuild].forEach(b => b.disabled = false);
+  setActiveBtn('btnCube');
+}
+
+btnPlay.onclick = async () => {
+  if (sequencePlaying) { sequencePlaying = false; return; }
+  if (!canStartSequence()) return;
+  btnPlay.textContent = '■ STOP';
+  btnPlay.classList.add('playing');
+  btnRecord.disabled = true;
+  await runSequence();
+  btnPlay.textContent = '▶ PLAY';
+  btnPlay.classList.remove('playing');
+  btnRecord.disabled = false;
+};
+
+// ── Recording ─────────────────────────────────────────────────────────────────
+const btnRecord = document.getElementById('btnRecord');
+
+function pickRecordingMimeType() {
+  const candidates = [
+    'video/mp4;codecs=h264', 'video/mp4',
+    'video/webm;codecs=vp9', 'video/webm',
+  ];
+  for (const c of candidates) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return '';
+}
+
+async function recordSequence() {
+  // captureStream() reads only the WebGL canvas pixels, so the fixed-position
+  // UI panels drawn over it are never part of the recorded frames.
+  const stream = renderer.domElement.captureStream(30);
+  const mimeType = pickRecordingMimeType();
+  const recordedChunks = [];
+  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+  recorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+  const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+
+  recorder.start();
+  btnRecord.textContent = '■ STOP REC';
+  btnRecord.classList.add('playing');
+  btnPlay.disabled = true;
+
+  await runSequence();
+
+  recorder.stop();
+  await stopped;
+
+  btnRecord.textContent = '⏺ RECORD';
+  btnRecord.classList.remove('playing');
+  btnPlay.disabled = false;
+
+  const actualType = recorder.mimeType || mimeType || 'video/webm';
+  const ext  = actualType.includes('mp4') ? 'mp4' : 'webm';
+  const blob = new Blob(recordedChunks, { type: actualType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `voxel-animation.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+btnRecord.onclick = () => {
+  if (sequencePlaying) { sequencePlaying = false; return; }
+  if (!canStartSequence()) return;
+  recordSequence();
+};
+
+seqWordEls.forEach(el => el.addEventListener('keydown', e => e.stopPropagation()));
+
+// ── Scatter / reassemble ──────────────────────────────────────────────────────
+let pDown = { x: 0, y: 0 };
+renderer.domElement.addEventListener('pointerdown', e => { pDown = { x: e.clientX, y: e.clientY }; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - pDown.x, e.clientY - pDown.y) > 5) return;
+  if (phase !== 'idle' || sequencePlaying) return;
+
+  if (isAssembled) {
+    const targets = voxels.map(v => {
+      if (v.mesh.position.y < -10) return POOL.clone();
+      const ang = Math.random() * Math.PI * 2;
+      const r   = 18 + Math.random() * 14;
+      // Snap onto the floor grid's cell centers (offset 0.5 from grid lines)
+      // so scattered cubes still land exactly on the grid.
+      const gx = Math.floor(Math.cos(ang) * r) + 0.5;
+      const gz = Math.floor(Math.sin(ang) * r) + 0.5;
+      return new THREE.Vector3(gx, v.mesh.position.y, gz);
+    });
+    startAnim(targets, 0.9, easeOut);
+    isAssembled = false;
+    hintEl.textContent = 'CLICK TO REASSEMBLE · DRAG TO ORBIT';
+    [btnCube, btnLetters, btnBuild].forEach(b => b.disabled = true);
+  } else {
+    startAnim(currentTargets, 1.4);
+    isAssembled = true;
+    hintEl.textContent = 'CLICK TO SCATTER · DRAG TO ORBIT';
+    [btnCube, btnLetters, btnBuild].forEach(b => b.disabled = false);
+  }
+});
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+document.getElementById('cubeColor').oninput = e => { mat.color.set(e.target.value); };
+
+document.getElementById('bgColor').oninput = e => {
+  scene.background.set(e.target.value);
+  document.body.style.background = e.target.value;
+};
+
+document.getElementById('chkGrid').onchange = e => { gridHelper.visible = e.target.checked; };
+document.getElementById('gridColor').oninput = e => {
+  GRID_COLOR = new THREE.Color(e.target.value).getHex();
+  const wasVisible = gridHelper.visible;
+  scene.remove(gridHelper);
+  gridHelper.geometry.dispose();
+  gridHelper.material.dispose();
+  gridHelper = new THREE.GridHelper(400, 400, GRID_COLOR, GRID_COLOR);
+  gridHelper.position.y = -0.02;
+  gridHelper.visible = wasVisible;
+  scene.add(gridHelper);
+};
+
+document.getElementById('chkFill').onchange = e => {
+  showFill = e.target.checked;
+  mat.opacity = showFill ? 1 : 0;
+};
+
+document.getElementById('chkOutline').onchange = e => {
+  showOutline = e.target.checked;
+  voxels.forEach(v => { v.edges.visible = showOutline; });
+};
+
+document.getElementById('outlineColor').oninput = e => {
+  edgeMat.color.set(e.target.value);
+};
+
+// ── Color palette swatches ────────────────────────────────────────────────
+const PALETTE = [
+  '#ffffff', '#041739', '#94c12e', '#4bb05b', '#04bff1', '#007fad', '#1d4370',
+  '#f6f6f6', '#ececec', '#d0d0d0', '#9d9d9d', '#000000',
+];
+
+document.querySelectorAll('.palette').forEach(paletteEl => {
+  const targetId = paletteEl.dataset.target;
+  const targetInput = document.getElementById(targetId);
+  PALETTE.forEach(hex => {
+    const sw = document.createElement('div');
+    sw.className = 'swatch';
+    sw.style.background = hex;
+    sw.title = hex;
+    if (targetInput.value.toLowerCase() === hex) sw.classList.add('selected');
+    sw.onclick = () => {
+      targetInput.value = hex;
+      targetInput.dispatchEvent(new Event('input'));
+      paletteEl.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+      sw.classList.add('selected');
+    };
+    paletteEl.appendChild(sw);
+  });
+});
+
+document.getElementById('chkShrinkOnly').onchange = e => { shrinkOnly = e.target.checked; };
+
+// ── Hide / show all UI ─────────────────────────────────────────────────────
+const hideMenuBtn = document.getElementById('hideMenuBtn');
+const uiPanels = [hintEl, modeEl, document.getElementById('ui'), document.getElementById('settings'), document.getElementById('sequence')];
+let menuHidden = false;
+hideMenuBtn.onclick = () => {
+  menuHidden = !menuHidden;
+  uiPanels.forEach(el => el.classList.toggle('ui-hidden', menuHidden));
+  hideMenuBtn.textContent = menuHidden ? 'SHOW MENU' : 'HIDE MENU';
+};
+
+document.getElementById('noiseType').onchange = e => { noiseType = e.target.value; };
+document.getElementById('noiseAmp').oninput = e => {
+  noiseAmp = e.target.value / 100;
+  document.getElementById('noiseAmpVal').textContent = e.target.value;
+};
+document.getElementById('noiseFreq').oninput = e => {
+  noiseFreq = e.target.value / 100;
+  document.getElementById('noiseFreqVal').textContent = e.target.value;
+};
+document.getElementById('noiseSpeed').oninput = e => {
+  noiseSpeed = e.target.value / 100;
+  document.getElementById('noiseSpeedVal').textContent = e.target.value;
+};
+
+document.getElementById('lightBlend').oninput = e => { lightBlend = e.target.value / 100; };
+
+// ── Render loop ───────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  noiseTime += dt * noiseSpeed * 5;
+
+  if (phase === 'animating') {
+    progress = Math.min(1, progress + dt / animDuration);
+    const t = animEase(progress);
+    voxels.forEach(v => v.mesh.position.lerpVectors(v.from, v.to, t));
+    if (progress >= 1) {
+      voxels.forEach(v => { v.mesh.position.copy(v.to); v.mesh.rotation.set(0, 0, 0); });
+      phase = 'idle';
+    }
+  }
+
+  if (noiseSpeed > 0) {
+    voxels.forEach((v, i) => {
+      if (v.mesh.position.y < -10) return;
+      const n = computeNoise(noiseType, i, v.mesh.position, noiseTime, noiseFreq);
+      const signedN = shrinkOnly ? -Math.abs(n) : n;
+      v.mesh.scale.setScalar(Math.max(0.05, 1 + signedN * noiseAmp));
+    });
+  } else {
+    voxels.forEach(v => { if (v.mesh.scale.x !== 1) v.mesh.scale.setScalar(1); });
+  }
+
+  applyLight(lightBlend);
+  controls.update();
+  renderer.render(scene, camera);
+});
+
+// ── Resize ───────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  aspect = innerWidth / innerHeight;
+  camera.left = -frustum * aspect; camera.right = frustum * aspect;
+  camera.top  = frustum; camera.bottom = -frustum;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
