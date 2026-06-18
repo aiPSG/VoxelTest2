@@ -536,7 +536,11 @@ function buildWordPositions(word) {
     FONT[ch].forEach((row, ri) => {
       [...row].forEach((bit, ci) => {
         if (bit === '1') {
-          const cx = letterX[li] + ci - (totalW - 1) / 2;
+          // Quantize horizontal centering to whole grid cells: when totalW is
+          // even, (totalW-1)/2 is a half-integer and would shift every cube half
+          // a cell off the floor grid. Math.floor keeps cx an integer so letters
+          // always land on grid cells (vertical centering is already integer).
+          const cx = letterX[li] + ci - Math.floor((totalW - 1) / 2);
           const cy = (lh - 1 - ri) - (lh - 1) / 2;
           out.push(new THREE.Vector3()
             .addScaledVector(L_RIGHT, cx)
